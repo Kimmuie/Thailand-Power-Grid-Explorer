@@ -25,7 +25,7 @@ https://thailand-power-grid-explorer.vercel.app
 
 ### Local Download
 
-Install TSE Fighter directly from repository.
+Install directly from repository.
 
 ```
 Requires Node 18.17+.
