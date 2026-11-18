@@ -240,6 +240,14 @@ function Topology() {
               const hydro = !!pi?.fuel.includes("พลังน้ำ");
               const sc = si ? (si.s === "normal" ? (hydro ? "#1d4ed8" : "#047857") : si.s === "warning" ? "#d97706" : "#dc2626") : "#047857";
               const ring = si && si.kv === 500 ? "#22d3ee" : "#6366f1";
+              const vs = d.lines.filter(l => l.A.id === n.id || l.B.id === n.id).map(l => { const o = l.A.id === n.id ? l.B : l.A; const dx = o.x - n.x, dy = o.y - n.y, m = Math.hypot(dx, dy) || 1; return [dx / m, dy / m]; });
+              const mvx = vs.length ? avg(vs.map(v => v[0])) : 0, mvy = vs.length ? avg(vs.map(v => v[1])) : 0;
+              const nameUp = mvy > 0.5;                                  // สายส่งไปทางล่าง → ชื่ออยู่เหนือโหนด
+              const W = 68, fitL = n.x - r - 6 - W >= 2, fitR = n.x + r + 6 + W <= 478;
+              const left = mvx > 0 ? fitL : !fitR;                       // วางข้อมูลฝั่งตรงข้ามสายส่ง
+              const toward = left ? mvx < 0 : mvx > 0;                   // ถ้าจำเป็นต้องอยู่ฝั่งเดียวกับสายส่ง ให้ขยับหนีเส้น
+              const cx = left ? n.x - r - 6 - W : n.x + r + 6;
+              const cy = n.y - 17 + (toward ? (mvy >= 0 ? -24 : 24) : 0);
               return <g key={n.id} onClick={() => setSel(n.id)} onMouseEnter={() => setHov(n.id)} onMouseLeave={() => setHov(null)} className="cursor-pointer">
                 {n.k === "s" && <>
                   <circle cx={n.x} cy={n.y} r={r + 16} fill="none" stroke="#cbd5e1" strokeWidth={0.8} strokeDasharray="2 4" />
@@ -256,13 +264,14 @@ function Topology() {
                   <rect x={n.x - r} y={n.y - r} width={r * 2} height={r * 2} rx={8} fill={hydro ? "url(#gB)" : "url(#gG)"} stroke={act ? "#0f172a" : "#d1fae5"} strokeWidth={act ? 2 : 1.5} />
                   <path d="M1 -7 L-5 1 H0 L-1 7 L5 -1 H0 Z" fill="#fff" transform={`translate(${n.x},${n.y}) scale(${r / 12})`} />
                 </>}
-                <text x={n.x} y={n.y + r + 16} textAnchor="middle" fontSize="12" fill="#0f172a">{n.n}</text>
+                <text x={n.x} y={nameUp ? n.y - r - 8 : n.y + r + 16} textAnchor="middle" fontSize="12" fill="#0f172a" stroke="#f8fbff" strokeWidth={4} strokeLinejoin="round" paintOrder="stroke">{n.n}</text>
                 {pi && si && <g fontSize="8" fontWeight="600" fill={sc}>
-                  <text x={n.x + r + 8} y={n.y - 6}>KV {si.kv}</text>
-                  <text x={n.x + r + 8} y={n.y + 4}>MW {pi.current.toLocaleString()}</text>
-                  <text x={n.x + r + 8} y={n.y + 14}>Status</text>
-                  <rect x={n.x + r + 34} y={n.y + 8} width={26} height={4} rx={2} fill="#e2e8f0" />
-                  <rect x={n.x + r + 34} y={n.y + 8} width={(26 * clamp(pi.lf)) / 100} height={4} rx={2} fill={sc} />
+                  <rect x={cx} y={cy} width={W} height={38} rx={6} fill="#fff" fillOpacity={0.93} stroke="#e2e8f0" />
+                  <text x={cx + 6} y={cy + 12}>KV {si.kv}</text>
+                  <text x={cx + 6} y={cy + 23}>MW {pi.current.toLocaleString()}</text>
+                  <text x={cx + 6} y={cy + 34}>Status</text>
+                  <rect x={cx + 40} y={cy + 29} width={22} height={4} rx={2} fill="#e2e8f0" />
+                  <rect x={cx + 40} y={cy + 29} width={(22 * clamp(pi.lf)) / 100} height={4} rx={2} fill={sc} />
                 </g>}
               </g>;
             })}
