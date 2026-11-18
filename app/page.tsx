@@ -70,7 +70,7 @@ const ST: Record<Status, { cls: string; label: string }> = {
 };
 const Badge = ({ s }: { s: Status }) => <span className={"ml-1 text-xs font-semibold " + ST[s].cls}>{ST[s].label}</span>;
 const kvOf = (w: number) => (w === 5 ? 500 : 230); // w เดิม: 5 = 500kV, 2 = 230kV
-const KV_COLOR: Record<number, string> = { 500: "#047857", 230: "#2563eb", 115: "#ca8a04" };
+const KV_COLOR: Record<number, string> = { 500: "#10b981", 230: "#3b82f6", 115: "#eab308" };
 const fuelGroup = (f: string) =>
   f.includes("ก๊าซ") ? "ก๊าซธรรมชาติ" : f.includes("ลิกไนต์") ? "ถ่านหินลิกไนต์" : f.includes("นำเข้า") ? "ไฟฟ้านำเข้า" : f.includes("พลังน้ำ") || f.includes("สูบกลับ") ? "พลังน้ำ" : "อื่น ๆ";
 
@@ -207,18 +207,64 @@ function Topology() {
     <div className="grid grid-cols-3 gap-4">
       <C t="แผนที่โครงข่าย 500kV / 230kV" s="Interactive — เลื่อนเมาส์ที่โรงไฟฟ้าเพื่อดูรายละเอียด คลิกเพื่อดูข้อมูลด้านล่าง" cls="col-span-2">
         <div className="relative">
-          <svg viewBox="0 0 480 330" className="w-full">
-            {d.lines.map(l => <line key={l.key} x1={l.A.x} y1={l.A.y} x2={l.B.x} y2={l.B.y}
-              stroke={l.loading !== null && l.loading >= 90 ? "#dc2626" : l.loading !== null && l.loading >= 80 ? "#f59e0b" : KV_COLOR[l.kv]}
-              strokeWidth={l.w} strokeDasharray={l.w == 2 ? "6 4" : ""} />)}
+          <svg viewBox="0 0 480 330" className="w-full rounded-xl border border-slate-200">
+            <defs>
+              <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#e2e8f0" strokeWidth="0.5" /></pattern>
+              <linearGradient id="gG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#10b981" /><stop offset="1" stopColor="#065f46" /></linearGradient>
+              <linearGradient id="gB" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#3b82f6" /><stop offset="1" stopColor="#1d4ed8" /></linearGradient>
+              <filter id="glow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="3.5" /></filter>
+            </defs>
+            <rect width="480" height="330" fill="#f8fbff" /><rect width="480" height="330" fill="url(#grid)" />
+            {/* HUD */}
+            <text x="10" y="14" fontSize="7" fill="#94a3b8">SIMULATED · {SIM.freqHz.toFixed(2)} Hz</text>
+            <text x="470" y="14" textAnchor="end" fontSize="7" fill="#94a3b8">Status: Simulated Data</text>
+            <line x1="170" x2="330" y1="314" y2="314" stroke="#cbd5e1" strokeWidth="0.8" />
+            {Array.from({ length: 17 }).map((_, i) => <line key={i} x1={170 + i * 10} x2={170 + i * 10} y1={314} y2={i % 8 === 0 ? 308 : 311} stroke="#cbd5e1" strokeWidth="0.8" />)}
+            {[0, 50, 100].map((v, i) => <text key={v} x={170 + i * 80} y="325" textAnchor="middle" fontSize="7" fill="#94a3b8">{v}</text>)}
+
+            {/* สายส่ง: เส้นเรืองแสง + เส้นหลัก */}
+            {d.lines.map(l => {
+              const col = l.loading !== null && l.loading >= 90 ? "#ef4444" : l.loading !== null && l.loading >= 80 ? "#f59e0b" : KV_COLOR[l.kv];
+              const dash = l.w == 2 ? "7 5" : undefined;
+              return <g key={l.key} strokeLinecap="round">
+                <line x1={l.A.x} y1={l.A.y} x2={l.B.x} y2={l.B.y} stroke={col} strokeWidth={l.w + 5} opacity={0.3} filter="url(#glow)" strokeDasharray={dash} />
+                <line x1={l.A.x} y1={l.A.y} x2={l.B.x} y2={l.B.y} stroke={col} strokeWidth={l.w} strokeDasharray={dash} />
+              </g>;
+            })}
+
+            {/* โหนด */}
             {NODES.map(n => {
-              const pi = n.k === "p" ? plantInfo(n.id) : null; const r = n.id === sel ? 16 : 13;
+              const act = n.id === sel || n.id === hov; const r = act ? 16 : 14;
+              const pi = n.k === "p" ? plantInfo(n.id) : null;
+              const si = n.k !== "u" ? subInfo(n.id) : null;
+              const hydro = !!pi?.fuel.includes("พลังน้ำ");
+              const sc = si ? (si.s === "normal" ? (hydro ? "#1d4ed8" : "#047857") : si.s === "warning" ? "#d97706" : "#dc2626") : "#047857";
+              const ring = si && si.kv === 500 ? "#22d3ee" : "#6366f1";
               return <g key={n.id} onClick={() => setSel(n.id)} onMouseEnter={() => setHov(n.id)} onMouseLeave={() => setHov(null)} className="cursor-pointer">
-                {n.k === "p"
-                  ? <><rect x={n.x - r} y={n.y - r} width={r * 2} height={r * 2} rx={6} fill={pi?.fuel.includes("พลังน้ำ") ? "#2563eb" : "#047857"} stroke={n.id === sel ? "#0f172a" : "#fff"} strokeWidth={2} />
-                    <path d="M1 -7 L-5 1 H0 L-1 7 L5 -1 H0 Z" fill="#fff" transform={`translate(${n.x},${n.y}) scale(${r / 12})`} /></>
-                  : <circle cx={n.x} cy={n.y} r={r} fill={n.k === "u" ? "#f59e0b" : "#0f172a"} stroke={n.id === sel ? "#047857" : "#94a3b8"} strokeWidth={3} />}
-                <text x={n.x} y={n.y + 30} textAnchor="middle" fontSize="11">{n.n}</text></g>;
+                {n.k === "s" && <>
+                  <circle cx={n.x} cy={n.y} r={r + 16} fill="none" stroke="#cbd5e1" strokeWidth={0.8} strokeDasharray="2 4" />
+                  <circle cx={n.x} cy={n.y} r={r + 30} fill="none" stroke="#e2e8f0" strokeWidth={0.8} />
+                  <circle cx={n.x} cy={n.y} r={r + 2} fill="none" stroke={ring} strokeWidth={7} opacity={0.45} filter="url(#glow)" />
+                  <circle cx={n.x} cy={n.y} r={r} fill="#1e293b" stroke={ring} strokeWidth={3} />
+                </>}
+                {n.k === "u" && <>
+                  <circle cx={n.x} cy={n.y} r={r + 3} fill="#f59e0b" opacity={0.5} filter="url(#glow)" />
+                  <circle cx={n.x} cy={n.y} r={r - 2} fill="#b45309" stroke="#fbbf24" strokeWidth={5} opacity={0.85} />
+                </>}
+                {n.k === "p" && <>
+                  <rect x={n.x - r} y={n.y - r} width={r * 2} height={r * 2} rx={8} fill={hydro ? "#3b82f6" : "#10b981"} opacity={0.5} filter="url(#glow)" />
+                  <rect x={n.x - r} y={n.y - r} width={r * 2} height={r * 2} rx={8} fill={hydro ? "url(#gB)" : "url(#gG)"} stroke={act ? "#0f172a" : "#d1fae5"} strokeWidth={act ? 2 : 1.5} />
+                  <path d="M1 -7 L-5 1 H0 L-1 7 L5 -1 H0 Z" fill="#fff" transform={`translate(${n.x},${n.y}) scale(${r / 12})`} />
+                </>}
+                <text x={n.x} y={n.y + r + 16} textAnchor="middle" fontSize="12" fill="#0f172a">{n.n}</text>
+                {pi && si && <g fontSize="8" fontWeight="600" fill={sc}>
+                  <text x={n.x + r + 8} y={n.y - 6}>KV {si.kv}</text>
+                  <text x={n.x + r + 8} y={n.y + 4}>MW {pi.current.toLocaleString()}</text>
+                  <text x={n.x + r + 8} y={n.y + 14}>Status</text>
+                  <rect x={n.x + r + 34} y={n.y + 8} width={26} height={4} rx={2} fill="#e2e8f0" />
+                  <rect x={n.x + r + 34} y={n.y + 8} width={(26 * clamp(pi.lf)) / 100} height={4} rx={2} fill={sc} />
+                </g>}
+              </g>;
             })}
           </svg>
           {hv && (hp || hs) && <div className="pointer-events-none absolute z-10 w-60 rounded-lg border bg-white p-3 text-xs shadow-lg"
@@ -307,15 +353,73 @@ const SS = [
   { q: "โรงไฟฟ้าพลังน้ำสูบกลับที่ช่วยพยุงระบบช่วงพีค", k: ["สูบกลับ", "พีค", "น้ำ"], r: [["ลำตะคอง ชลภาวัฒนา", "1018", 93.2, 21.1], ["ภูมิพล", "1005", 81.5, 18.4]] },
   { q: "โรงไฟฟ้าพลังงานแสงอาทิตย์ที่ยังไม่เดินเครื่อง", k: ["แสง", "โซลาร์", "ไม่เดิน"], r: [["โซลาร์ไฮบริดภาคใต้ เฟส 2", "1040", 90.1, 0], ["โซลาร์ลพบุรี", "1024", 79.8, 34.8]] },
 ];
-const DOTS = [[60, 40, 0], [90, 60, 0], [150, 120, 1], [170, 110, 1], [190, 130, 1], [80, 170, 2], [240, 50, 3], [260, 70, 3], [220, 160, 1]];
+/* ───────── UMAP Cluster: กลุ่ม/จำนวน/ชื่อ มาจาก PLANTS จริง; ตำแหน่งจุดเป็นผังจำลอง ───────── */
+const CLUSTERS = [
+  { label: "พลังความร้อนร่วมก๊าซ", color: "#059669", test: (s: string) => s.includes("ก๊าซ"), c: [320, 135] },
+  { label: "พลังน้ำ / สูบกลับ", color: "#2563eb", test: (s: string) => s.includes("พลังน้ำ"), c: [130, 85] },
+  { label: "พลังความร้อนถ่านหิน / ลิกไนต์", color: "#92400e", test: (s: string) => s.includes("ลิกไนต์") || s.includes("ถ่านหิน"), c: [465, 75] },
+  { label: "โซลาร์ / พลังงานหมุนเวียน", color: "#065f46", test: (s: string) => s.includes("แสงอาทิตย์") || s.includes("ลม"), c: [215, 215] },
+];
+const clusterOf = (src: string) => Math.max(0, CLUSTERS.findIndex(c => c.test(src)));
+const shortName = (n: string) => n.replace(/^(โรงไฟฟ้า|เขื่อน)/, "").replace(/\s*\(.*\)/, "");
+
+function UmapCard({ hits }: { hits: string[] }) {
+  const [focus, setFocus] = useState<number | null>(null);
+  const pts = useMemo(() => {
+    const cnt = CLUSTERS.map(() => 0);
+    return PLANTS.map(p => {
+      const k = clusterOf(p.src); const i = cnt[k]++;
+      const a = i * 2.399 + k, r = 24 * Math.sqrt(i + 0.6); // วางแบบ deterministic รอบศูนย์กลางกลุ่ม
+      return { p, k, x: CLUSTERS[k].c[0] + r * Math.cos(a), y: CLUSTERS[k].c[1] + r * Math.sin(a) * 0.8, active: p.st === "เดินเครื่อง" };
+    });
+  }, []);
+  const hp = pts.filter(q => hits.includes(q.p.id));
+  const hc = hp.length ? { x: avg(hp.map(q => q.x)), y: avg(hp.map(q => q.y)) } : null;
+  const hr = hc ? Math.max(...hp.map(q => Math.hypot(q.x - hc.x, q.y - hc.y))) + 26 : 0;
+  const zone = hp.length ? `โซนที่ ${hp[0].k + 1}: ${CLUSTERS[hp[0].k].label}` : "ทุกกลุ่ม";
+  const caption = CLUSTERS.map((_, k) => { const g = pts.filter(q => q.k === k); return g.length ? { k, x: avg(g.map(q => q.x)), y: Math.min(...g.map(q => q.y)) - 14 } : null; });
+
+  return <div>
+    <div className="relative overflow-hidden rounded-2xl border border-indigo-100 bg-indigo-50/40">
+      <div className="absolute left-3 top-3 z-10 rounded-lg border border-indigo-100 bg-white px-3 py-1 text-sm font-bold">{zone}</div>
+      <div className="absolute right-3 top-3 z-10 rounded-lg border border-indigo-100 bg-white px-3 py-1 font-mono text-xs">n = {PLANTS.length} แห่ง</div>
+      <svg viewBox="0 0 560 300" className="w-full">
+        {[75, 150, 225].map(y => <line key={y} x1="0" x2="560" y1={y} y2={y} stroke="#e0e7ff" strokeDasharray="3 5" />)}
+        {[140, 280, 420].map(x => <line key={x} y1="0" y2="300" x1={x} x2={x} stroke="#e0e7ff" strokeDasharray="3 5" />)}
+        {hc && <circle cx={hc.x} cy={hc.y} r={hr} fill="#cbd5e1" fillOpacity={0.45} stroke="#065f46" strokeWidth={1.3} strokeDasharray="4 3" />}
+        {caption.map(c => c && <text key={c.k} x={c.x} y={c.y} textAnchor="middle" fontSize="11" fontWeight="700" fill={CLUSTERS[c.k].color} opacity={focus === null || focus === c.k ? 1 : 0.25}>{CLUSTERS[c.k].label}</text>)}
+        {pts.map(q => {
+          const hit = hits.includes(q.p.id); const col = CLUSTERS[q.k].color; const op = focus === null || focus === q.k ? 1 : 0.2;
+          const right = q.x > 470;
+          return <g key={q.p.id} opacity={op}>
+            <title>{`${q.p.name} · ${q.p.src} · ${q.p.mw} MW · ${q.p.st}${q.p.ef !== null ? ` · EF ${q.p.ef} kg/MWh` : ""}`}</title>
+            <circle cx={q.x} cy={q.y} r={hit ? 7 : 6} fill={q.active ? col : "#fff"} stroke={col} strokeWidth={q.active ? 0 : 2} strokeDasharray={q.active ? undefined : "2 2"} />
+            <text x={right ? q.x - 10 : q.x + 10} y={q.y + 3} textAnchor={right ? "end" : "start"} fontSize="10" fontWeight={hit ? 700 : 400} fill={hit ? col : "#475569"}>{shortName(q.p.name)}</text>
+          </g>;
+        })}
+      </svg>
+      <div className="absolute bottom-2 left-3 font-mono text-[11px] text-slate-500">มิติ UMAP 1 →</div>
+      <div className="absolute bottom-2 right-3 font-mono text-[11px] text-slate-500">↑ มิติ UMAP 2</div>
+    </div>
+    <div className="mt-3 grid grid-cols-2 gap-2">
+      {CLUSTERS.map((c, k) => <button key={k} onClick={() => setFocus(focus === k ? null : k)}
+        className={"flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm " + (focus === k ? "border-slate-700 bg-slate-100" : "hover:bg-slate-50")}>
+        <span className="inline-block h-3 w-3 shrink-0 rounded-full" style={{ background: c.color }} />
+        <span>{c.label} ({pts.filter(q => q.k === k).length})</span></button>)}
+    </div>
+    <p className="mt-2 text-xs text-slate-400">จำนวนและกลุ่มมาจากรายชื่อโรงไฟฟ้า · วงโปร่ง = ปลดระวาง/เสนอโครงการ · ตำแหน่งจุดเป็นผังจำลอง ไม่ได้คำนวณจาก embedding จริง</p>
+  </div>;
+}
+
 function Semantic() {
   const [i, setI] = useState(0); const [txt, setTxt] = useState(SS[0].q);
   const go = () => { const j = SS.findIndex(s => s.k.some(k => txt.includes(k))); setI(j < 0 ? 0 : j); };
+  const hits = SS[i].r.map((r: any) => PLANTS.find(p => p.name.includes(String(r[0]).replace(/\s*\(.*\)/, "")))?.id).filter(Boolean) as string[];
   return <div className="space-y-4"><C t="ค้นหาด้วยภาษาธรรมชาติ (ภาษาไทย)">
     <div className="flex gap-2"><input value={txt} onChange={e => setTxt(e.target.value)} className="flex-1 rounded-lg border px-3 py-2" /><button onClick={go} className="rounded-lg bg-brand px-4 text-white">ค้นหาด้วย AI</button></div>
     <div className="mt-2 flex gap-2">{SS.map((s, n) => <button key={n} onClick={() => { setI(n); setTxt(s.q); }} className="rounded-full border px-3 py-1 text-xs hover:bg-slate-50">{s.q.slice(0, 28)}…</button>)}</div></C>
-    <div className="grid grid-cols-3 gap-4"><div className="col-span-2 space-y-3">{SS[i].r.map((r: any, n) => <C key={r[1]}><div className="flex items-center justify-between"><div><b>#{n + 1} {r[0]}</b> <span className="font-mono text-xs text-blue-700">{r[1]}</span></div><span className="rounded-full bg-emerald-100 px-3 text-sm text-emerald-800">Cosine: {r[2]}%</span></div><div className="mt-1 text-sm text-slate-500">CO2: <b>{r[3]}</b> kg/MWh</div></C>)}</div>
-      <C t="UMAP Cluster"><svg viewBox="0 0 300 200" className="w-full">{DOTS.map((d, n) => <circle key={n} cx={d[0]} cy={d[1]} r={6} fill={["#047857", "#2563eb", "#92400e", "#16a34a"][d[2]]} />)}</svg></C></div>
+    <div className="grid grid-cols-3 gap-4"><div className="col-span-1 space-y-3">{SS[i].r.map((r: any, n) => <C key={r[1]}><div className="flex items-center justify-between"><div><b>#{n + 1} {r[0]}</b> <span className="font-mono text-xs text-blue-700">{r[1]}</span></div><span className="rounded-full bg-emerald-100 px-3 text-sm text-emerald-800">Cosine: {r[2]}%</span></div><div className="mt-1 text-sm text-slate-500">CO2: <b>{r[3]}</b> kg/MWh</div></C>)}</div>
+      <C t="UMAP Cluster" s="ตำแหน่งของโรงไฟฟ้าที่ตรงกับคำค้นหา (วงประ)" cls="col-span-2"><UmapCard hits={hits} /></C></div>
     <C t="Cross-lingual Harmonization (TH ↔ EN)"><div className="font-mono text-sm">พลังน้ำแบบสูบกลับ → pumped-storage-hydro · พยุงระบบ/พีค → peak-shaving-grid</div></C></div>;
 }
 
